@@ -26,13 +26,13 @@ function get_kodi_ip {
      nmap -sn 192.168.1.100-109 >/dev/null
 
      # use arp to get mac address of everything pinged by nmap and filter Raspberry Pi IP
-     kodi_mac_address_file=$here/raspberry_mac
+     kodi_mac_address_file="${here}/raspberry_mac"
      if [[ ! -f $kodi_mac_address_file ]]; then
        echo
        echo "ERROR: make sure there is a file called raspberry_mac in directory ${here} containing the mac address of the device running Kodi" 1>&2
        exit 4
      fi
-     kodi_mac_address=$(cat $here/raspberry_mac)
+     kodi_mac_address=$(cat $kodi_mac_address_file)
      if [[ -z $kodi_mac_address ]]; then
        echo
        echo "ERROR: make sure there that the file ${kodi_mac_address_file} contains the mac address of the device on which Kodi is running" 1>&2
@@ -63,7 +63,19 @@ function kodi_rpc_no_output {
 
 function connect_kodi_to_rygel {
   echo "Connecting Kodi to Rygel..."
-  kodi_rpc_no_output '{"jsonrpc":"2.0","id":1,"method":"Player.Open","params":{"item":{"file":"upnp://cc33bae4-2480-42cc-a48b-bcd1817efa96/mypulseaudiosink/"}}}'
+  upnp_file="${here}/upnp_file"
+  if [[ ! -f $upnp_file ]]; then
+    echo
+    echo "ERROR: make sure there is a file called upnp_file in directory ${here} containing the location of the file to play" 1>&2
+    exit 6
+  fi
+  upnp_file_location=$(cat $upnp_file)
+  if [[ -z $upnp_file_location ]]; then
+    echo
+    echo "ERROR: make sure there that the file ${upnp_file} contains the location of the file to play" 1>&2
+    exit 7
+  fi
+  kodi_rpc_no_output '{"jsonrpc":"2.0","id":1,"method":"Player.Open","params":{"item":{"file":"'$upnp_file_location'"}}}'
   echo "   Connection established"
 }
 
@@ -120,6 +132,5 @@ kodi_monitor_free_memory
 
 trap - ERR INT TERM EXIT
 set +e
-exit
 
 exit_program
