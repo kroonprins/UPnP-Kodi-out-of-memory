@@ -18,6 +18,26 @@ function stop_rygel {
   kill -TERM $RYGEL_PID;
 }
 
+function get_kodi_mac_address_from_file {
+  if [[ -n $KODI_MAC_ADDRESS ]]; then
+    return
+  fi
+
+  kodi_mac_address_file="${here}/raspberry_mac"
+  if [[ ! -f $kodi_mac_address_file ]]; then
+    echo
+    echo "ERROR: make sure there is a file called raspberry_mac in directory ${here} containing the mac address of the device running Kodi" 1>&2
+    exit 4
+  fi
+  kodi_mac_address=$(cat $kodi_mac_address_file)
+  if [[ -z $kodi_mac_address ]]; then
+    echo
+    echo "ERROR: make sure there that the file ${kodi_mac_address_file} contains the mac address of the device on which Kodi is running" 1>&2
+    exit 5
+  fi
+  KODI_MAC_ADDRESS=$kodi_mac_address
+}
+
 function get_kodi_ip {
   echo  "Searching for Kodi..."
   while [[ -z $kodi_ip ]]; do
@@ -25,20 +45,10 @@ function get_kodi_ip {
      # ip ping local network
      nmap -sn 192.168.1.100-109 >/dev/null
 
+
      # use arp to get mac address of everything pinged by nmap and filter Raspberry Pi IP
-     kodi_mac_address_file="${here}/raspberry_mac"
-     if [[ ! -f $kodi_mac_address_file ]]; then
-       echo
-       echo "ERROR: make sure there is a file called raspberry_mac in directory ${here} containing the mac address of the device running Kodi" 1>&2
-       exit 4
-     fi
-     kodi_mac_address=$(cat $kodi_mac_address_file)
-     if [[ -z $kodi_mac_address ]]; then
-       echo
-       echo "ERROR: make sure there that the file ${kodi_mac_address_file} contains the mac address of the device on which Kodi is running" 1>&2
-       exit 5
-     fi
-     kodi_ip=$(arp -an | grep -i $kodi_mac_address | sed 's/.*\(192.168.1.10[0-9]\).*/\1/')
+     get_kodi_mac_address_from_file
+     kodi_ip=$(arp -an | grep -i $KODI_MAC_ADDRESS | sed 's/.*\(192.168.1.10[0-9]\).*/\1/')
      if [[ -n $kodi_ip ]]; then
         break;
      fi
@@ -61,8 +71,12 @@ function kodi_rpc_no_output {
   kodi_rpc_output "/dev/null" "$request"
 }
 
-function connect_kodi_to_rygel {
-  echo "Connecting Kodi to Rygel..."
+function get_upnp_file_location_from_file {
+  if [[ -n $UPnP_FILE_LOCATION ]]; then
+    return
+  fi
+
+  # alternative could be to call Kodi RPC operations Files.GetSources + Files.GetDirectory to retrieve the upnp file location for "Gst Launch"
   upnp_file="${here}/upnp_file"
   if [[ ! -f $upnp_file ]]; then
     echo
@@ -75,7 +89,13 @@ function connect_kodi_to_rygel {
     echo "ERROR: make sure there that the file ${upnp_file} contains the location of the file to play" 1>&2
     exit 7
   fi
-  kodi_rpc_no_output '{"jsonrpc":"2.0","id":1,"method":"Player.Open","params":{"item":{"file":"'$upnp_file_location'"}}}'
+  UPnP_FILE_LOCATION=$upnp_file_location
+}
+
+function connect_kodi_to_rygel {
+  echo "Connecting Kodi to Rygel..."
+  get_upnp_file_location_from_file
+  kodi_rpc_no_output '{"jsonrpc":"2.0","id":1,"method":"Player.Open","params":{"item":{"file":"'$UPnP_FILE_LOCATION'"}}}'
   echo "   Connection established"
 }
 
